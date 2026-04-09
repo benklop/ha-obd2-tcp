@@ -9,7 +9,7 @@
           "port": "TCP port",
           "scan_interval": "Coordinator scan interval (seconds)",
           "device_name": "Device display name",
-          "profile": "Built-in profile name (without .json)"
+          "profile": "Profile (from profiles folder)"
         }
       }
     },

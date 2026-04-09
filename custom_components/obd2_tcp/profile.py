@@ -55,6 +55,14 @@ def load_profile_from_package(profile_name: str, component_dir: Path) -> list[Pr
     return load_profile_from_path(prof)
 
 
+def list_available_profiles(component_dir: Path) -> list[str]:
+    """Return sorted profile names (stem of each ``profiles/*.json`` file)."""
+    prof_dir = component_dir / "profiles"
+    if not prof_dir.is_dir():
+        return []
+    return sorted(p.stem for p in prof_dir.glob("*.json") if p.is_file())
+
+
 def parse_profile_array(data: list[dict[str, Any]]) -> list[ProfileEntity]:
     entities: list[ProfileEntity] = []
     for row in data:

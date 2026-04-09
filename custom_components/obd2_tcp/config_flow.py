@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
@@ -10,6 +11,7 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_DEVICE_NAME,
@@ -25,20 +27,36 @@ from .const import (
     FUEL_TYPE_GASOLINE,
 )
 from .elm_connection import ELMConnection, ELMConnectionError
+from .profile import list_available_profiles
 from .protocol import OBDProtocol
 
 _LOGGER = logging.getLogger(__name__)
 
-STEP_USER_DATA_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_HOST): str,
-        vol.Required(CONF_PORT, default=DEFAULT_PORT): vol.Coerce(int),
-        vol.Optional(CONF_DEVICE_NAME): str,
-        vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.Coerce(int),
-        vol.Optional(CONF_PROFILE, default=DEFAULT_PROFILE): str,
-        vol.Optional(CONF_FUEL_TYPE, default=FUEL_TYPE_GASOLINE): vol.Coerce(int),
-    }
-)
+
+def _user_data_schema(component_dir: Path) -> vol.Schema:
+    profiles = list_available_profiles(component_dir)
+    if not profiles:
+        profiles = [DEFAULT_PROFILE]
+    profile_default = (
+        DEFAULT_PROFILE if DEFAULT_PROFILE in profiles else profiles[0]
+    )
+    return vol.Schema(
+        {
+            vol.Required(CONF_HOST): str,
+            vol.Required(CONF_PORT, default=DEFAULT_PORT): vol.Coerce(int),
+            vol.Optional(CONF_DEVICE_NAME): str,
+            vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.Coerce(
+                int
+            ),
+            vol.Optional(CONF_PROFILE, default=profile_default): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=profiles,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Optional(CONF_FUEL_TYPE, default=FUEL_TYPE_GASOLINE): vol.Coerce(int),
+        }
+    )
 
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, str]:
@@ -88,6 +106,6 @@ class OBD2TCPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=STEP_USER_DATA_SCHEMA,
+            data_schema=_user_data_schema(Path(__file__).parent),
             errors=errors,
         )

@@ -30,9 +30,33 @@ Add this repository as a custom repository (category: Integration), then install
 
 ## Profiles
 
+### MIL and monitor status
+
+**MIL** (*Malfunction Indicator Lamp*) is the **check engine light**. OBD **PID 01** (monitor status) reports whether the MIL is commanded **on**, how many **emissions-related DTCs** the ECU reports, and **readiness** flags for smog-related monitors. That is separate from reading the actual trouble codes (**mode 03**), which the integration can do when a CALC uses `numDTCs(...)`.
+
+The **`ford_e450_2013`** profile exposes a **32-bit bitstring** for PID 01, a **check engine** boolean, DTC counts, raw readiness bytes B/C/D, and extra PIDs where supported. Set **`enabled`: false** on any entity that returns **NO DATA** on your bus.
+
 Profiles use the same array shape as obd2-mqtt `profiles/*.json`: **READ** (`type`: 0) and **CALC** (`type`: 1), `pid` decimals, `scaleFactor` expressions, and `expr` for CALC.
 
 Place additional profiles next to `default.json`. Trig functions in CALC use **degrees**, matching the firmware `ExprParser`.
+
+### RV / house loads (Ford E‑450 profile)
+
+The **`ford_e450_2013`** profile aligns **standard OBD‑II** with names you see in **FORScan** freeze data (e.g. **IAT**, **ECT**, **BARO**, **LOAD**, **FLI**, **RUNTM**, **VPWR**). It does **not** expose FORScan‑only items such as **TAC_PCT**, **TFT**, **GEAR**, or **APP** voltages — those need manufacturer‑specific modes (FORScan), not mode `01` alone.
+
+For **alternator → house bank** or **AC** automations, combine entities such as **`rpm`**, **`engineLoad`**, **`controlModuleVoltage`** (≈ FORScan **VPWR**), **`alternatorHeadroomVolts`** (heuristic delta), **`engineLoadPowerProxy`** (RPM×load heuristic), and temperatures. **`batteryVoltage`** is **AT RV** (adapter pin 16), not the same as **VPWR**. Your export shows **P0620** (generator control) — worth monitoring **`checkEngineLight`** / DTCs alongside charging logic.
+
+Bundled example: **`ford_e450_2013`** — tuned for a **2013 Ford E‑450**-class chassis from ELM probe output: **MIL / PID 01** (bitstring, check-engine bool, DTC counts, readiness bytes), **timing advance** (`010E`), **distance with MIL** (`0121`), fuel trims, MAF, lambda, relative throttle, fuel-type code, plus the earlier core PIDs. **Omitted** intake MAP (`010B`) and oil temp (`015C`) (**NO DATA** on that bus). Disable any new PID that returns **NO DATA** on yours. PID support **81–C0** (`0180` / `01A0`) often shows NO DATA even when the bus is healthy.
+
+### Adapter probe (run on your LAN)
+
+From a machine that can reach the adapter:
+
+```bash
+python3 tools/obd_probe.py 192.168.x.x -p 35000
+```
+
+Use **`--quick`** for identity + `AT RV` only. Full run prints supported-PID bitmaps (`0100`, `0120`, …), sample PIDs, and mode `03` DTCs — use the output to tune your profile.
 
 ## Behavior notes
 
