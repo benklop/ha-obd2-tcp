@@ -76,12 +76,20 @@ class CannotConnect(HomeAssistantError):
     """Error to indicate we cannot connect."""
 
 
+# Newer HA: CONN_CLASS_LOCAL_POLL; older: CONNECTION_CLASS_LOCAL_POLL
+_CONN_CLASS_LOCAL_POLL = getattr(
+    config_entries,
+    "CONN_CLASS_LOCAL_POLL",
+    getattr(config_entries, "CONNECTION_CLASS_LOCAL_POLL", "local_poll"),
+)
+
+
 class OBD2TCPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow."""
 
     VERSION = 1
 
-    CONNECTION_CLASS = config_entries.CONNECTION_CLASS_LOCAL_POLL
+    CONNECTION_CLASS = _CONN_CLASS_LOCAL_POLL
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
