@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "OBD2 (TCP)",
+        "description": "Connect to an ELM327-compatible adapter over TCP.",
+        "data": {
+          "host": "Host or IP address",
+          "port": "TCP port",
+          "scan_interval": "Coordinator scan interval (seconds)",
+          "device_name": "Device display name",
+          "profile": "Built-in profile name (without .json)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect or ELM did not respond",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This host is already configured"
+    }
+  }
+}

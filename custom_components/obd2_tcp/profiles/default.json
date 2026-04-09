@@ -1,0 +1,102 @@
+[
+  {
+    "type": 0,
+    "valueType": "float",
+    "enabled": true,
+    "visible": true,
+    "interval": 500,
+    "name": "batteryVoltage",
+    "description": "Battery Voltage",
+    "icon": "battery",
+    "unit": "V",
+    "deviceClass": "voltage",
+    "measurement": true,
+    "diagnostic": false,
+    "readFunc": "batteryVoltage",
+    "pid": { "service": 0, "pid": 0, "numResponses": 0, "numExpectedBytes": 0, "bias": 0 }
+  },
+  {
+    "type": 0,
+    "valueType": "int",
+    "enabled": true,
+    "visible": true,
+    "interval": 500,
+    "name": "rpm",
+    "description": "Engine RPM",
+    "icon": "engine",
+    "unit": "rpm",
+    "deviceClass": "",
+    "measurement": true,
+    "diagnostic": false,
+    "pid": {
+      "service": 1,
+      "pid": 12,
+      "numResponses": 1,
+      "numExpectedBytes": 2,
+      "scaleFactor": "1.0 / 4.0",
+      "bias": 0
+    },
+    "value": { "format": "%d" }
+  },
+  {
+    "type": 0,
+    "valueType": "int",
+    "enabled": true,
+    "visible": true,
+    "interval": 500,
+    "name": "speed",
+    "description": "Vehicle speed",
+    "icon": "speedometer",
+    "unit": "km/h",
+    "deviceClass": "speed",
+    "measurement": true,
+    "diagnostic": false,
+    "pid": {
+      "service": 1,
+      "pid": 13,
+      "numResponses": 1,
+      "numExpectedBytes": 1,
+      "scaleFactor": "1",
+      "bias": 0
+    },
+    "value": { "format": "%d" }
+  },
+  {
+    "type": 0,
+    "valueType": "int",
+    "enabled": true,
+    "visible": true,
+    "interval": 2000,
+    "name": "engineCoolantTemp",
+    "description": "Engine coolant temperature",
+    "icon": "thermometer",
+    "unit": "°C",
+    "deviceClass": "temperature",
+    "measurement": true,
+    "diagnostic": false,
+    "pid": {
+      "service": 1,
+      "pid": 5,
+      "numResponses": 1,
+      "numExpectedBytes": 1,
+      "scaleFactor": "1",
+      "bias": -40
+    },
+    "value": { "format": "%d" }
+  },
+  {
+    "type": 1,
+    "valueType": "float",
+    "enabled": true,
+    "visible": true,
+    "interval": 5000,
+    "name": "uptimeMinutes",
+    "description": "Integration uptime (minutes)",
+    "icon": "timer-outline",
+    "unit": "min",
+    "deviceClass": "",
+    "measurement": true,
+    "diagnostic": true,
+    "expr": "($millis / 60000)"
+  }
+]

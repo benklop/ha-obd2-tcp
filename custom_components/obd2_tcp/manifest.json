@@ -1,0 +1,11 @@
+{
+  "domain": "obd2_tcp",
+  "name": "OBD2 (TCP)",
+  "config_flow": true,
+  "documentation": "https://github.com/adlerre/obd2-mqtt",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/adlerre/obd2-mqtt/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
