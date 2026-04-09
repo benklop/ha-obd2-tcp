@@ -33,8 +33,7 @@ from .protocol import OBDProtocol
 _LOGGER = logging.getLogger(__name__)
 
 
-def _user_data_schema(component_dir: Path) -> vol.Schema:
-    profiles = list_available_profiles(component_dir)
+def _user_data_schema(profiles: list[str]) -> vol.Schema:
     if not profiles:
         profiles = [DEFAULT_PROFILE]
     profile_default = (
@@ -112,8 +111,12 @@ class OBD2TCPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(title=info["title"], data=user_input)
 
+        profiles = await self.hass.async_add_executor_job(
+            list_available_profiles,
+            Path(__file__).parent,
+        )
         return self.async_show_form(
             step_id="user",
-            data_schema=_user_data_schema(Path(__file__).parent),
+            data_schema=_user_data_schema(profiles),
             errors=errors,
         )
