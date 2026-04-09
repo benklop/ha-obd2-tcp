@@ -33,12 +33,14 @@ from . import config_flow  # noqa: F401
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from .coordinator import OBD2TCPCoordinator
-    from .profile import load_profile_from_package
+    from .profile import async_load_profile_from_package
 
     component_dir = Path(__file__).parent
     profile_name = entry.data.get(CONF_PROFILE, DEFAULT_PROFILE)
     try:
-        profile_entities = load_profile_from_package(profile_name, component_dir)
+        profile_entities = await async_load_profile_from_package(
+            hass, profile_name, component_dir
+        )
     except FileNotFoundError:
         _LOGGER.error("Profile %s not found under profiles/", profile_name)
         return False

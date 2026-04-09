@@ -43,8 +43,19 @@ class ProfileEntity:
     header: int = 0
 
 
+def _read_profile_json(path: Path) -> list[dict[str, Any]]:
+    """Read and parse profile JSON (sync helper; run in executor)."""
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def load_profile_from_path(path: Path) -> list[ProfileEntity]:
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = _read_profile_json(path)
+    return parse_profile_array(data)
+
+
+async def async_load_profile_from_path(hass: Any, path: Path) -> list[ProfileEntity]:
+    """Async-safe profile load (does file IO off the event loop)."""
+    data = await hass.async_add_executor_job(_read_profile_json, path)
     return parse_profile_array(data)
 
 
@@ -53,6 +64,15 @@ def load_profile_from_package(profile_name: str, component_dir: Path) -> list[Pr
     if not prof.is_file():
         raise FileNotFoundError(f"Profile not found: {prof}")
     return load_profile_from_path(prof)
+
+
+async def async_load_profile_from_package(
+    hass: Any, profile_name: str, component_dir: Path
+) -> list[ProfileEntity]:
+    prof = component_dir / "profiles" / f"{profile_name}.json"
+    if not prof.is_file():
+        raise FileNotFoundError(f"Profile not found: {prof}")
+    return await async_load_profile_from_path(hass, prof)
 
 
 def list_available_profiles(component_dir: Path) -> list[str]:
