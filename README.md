@@ -2,6 +2,8 @@
 
 Custom integration that connects to an **ELM327-compatible** adapter over **TCP** (host and port), polls OBD-II data, and evaluates **CALC** expressions compatible with [obd2-mqtt](https://github.com/adlerre/obd2-mqtt) profile JSON.
 
+Under the hood it uses [python-OBD](https://github.com/brendan-w/python-OBD) (PyPI package `obd`) and connects via a pySerial URL like `socket://<host>:<port>`.
+
 ## Requirements
 
 - Home Assistant 2024.1 or newer
@@ -20,7 +22,7 @@ Add this repository as a custom repository (category: Integration), then install
 ## Configuration
 
 | Field | Description |
-|--------|-------------|
+| ------ | ----------- |
 | Host | IP or hostname of the adapter |
 | Port | TCP port (default `35000`) |
 | Scan interval | How often the coordinator runs a poll cycle (seconds). Profile `interval` values are in **milliseconds**; a state is only updated when both this cycle and its interval allow it. |

@@ -26,10 +26,6 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: tuple[str, ...] = ("sensor",)
 
-# Preload config flow with the package so later import_module(...config_flow) is cached
-# and does not block the event loop (see HA asyncio_imports docs).
-from . import config_flow  # noqa: F401
-
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from .coordinator import OBD2TCPCoordinator

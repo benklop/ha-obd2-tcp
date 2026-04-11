@@ -26,9 +26,8 @@ from .const import (
     DOMAIN,
     FUEL_TYPE_GASOLINE,
 )
-from .elm_connection import ELMConnection, ELMConnectionError
+from .obd_client import PythonOBDClient
 from .profile import list_available_profiles
-from .protocol import OBDProtocol
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,12 +58,8 @@ def _user_data_schema(profiles: list[str]) -> vol.Schema:
 
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, str]:
-    conn = ELMConnection(data[CONF_HOST], int(data[CONF_PORT]))
-    proto = OBDProtocol(conn)
-    try:
-        ok = await proto.async_quick_probe()
-    finally:
-        await conn.async_disconnect()
+    client = PythonOBDClient(data[CONF_HOST], int(data[CONF_PORT]))
+    ok = await hass.async_add_executor_job(client.quick_probe)
     if not ok:
         raise CannotConnect
     title = data.get(CONF_DEVICE_NAME) or f"{data[CONF_HOST]}:{data[CONF_PORT]}"
@@ -98,8 +93,6 @@ class OBD2TCPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             try:
                 info = await validate_input(self.hass, user_input)
             except CannotConnect:
-                errors["base"] = "cannot_connect"
-            except ELMConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception:  # noqa: BLE001
                 _LOGGER.exception("Unexpected exception")

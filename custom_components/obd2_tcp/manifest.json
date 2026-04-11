@@ -6,6 +6,6 @@
   "integration_type": "device",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/adlerre/obd2-mqtt/issues",
-  "requirements": [],
+  "requirements": ["obd==0.7.3"],
   "version": "0.1.0"
 }

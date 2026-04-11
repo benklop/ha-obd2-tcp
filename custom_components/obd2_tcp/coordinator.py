@@ -33,15 +33,14 @@ from .const import (
     STATE_TYPE_CALC,
     STATE_TYPE_READ,
 )
-from .elm_connection import ELMConnection, ELMConnectionError
 from .expressions import ExprParser
+from .obd_client import OBDClientError, PythonOBDClient
 from .profile import (
     ProfileEntity,
     cast_value,
     decode_pid_bytes,
     format_sensor_native,
 )
-from .protocol import OBDProtocol
 from .state_store import StateStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,8 +65,8 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.port = port
         self._profile_entities = [e for e in profile_entities if e.enabled and e.visible]
         self._fuel_type = fuel_type
-        self._conn = ELMConnection(host, port)
-        self._protocol = OBDProtocol(self._conn)
+        self._client = PythonOBDClient(host, port)
+        self._last_dtcs: list[str] = []
         self._store = StateStore()
         self._lock = asyncio.Lock()
         super().__init__(
@@ -172,8 +171,10 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 repl = "0"
             else:
                 async with self._lock:
-                    await self._protocol.async_fetch_dtcs()
-                repl = str(len(self._protocol.last_dtcs))
+                    self._last_dtcs = await self.hass.async_add_executor_job(
+                        self._client.fetch_dtcs
+                    )
+                repl = str(len(self._last_dtcs))
             out = out[: m.start()] + repl + out[m.end() :]
         return out
 
@@ -210,9 +211,7 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 for ent in self._profile_entities:
                     self._store.ensure(ent.name)
 
-                if not self._conn.connected:
-                    await self._conn.async_connect()
-                    await self._protocol.async_init()
+                await self.hass.async_add_executor_job(self._client.ensure_connected)
 
                 read_list = [
                     e
@@ -251,18 +250,18 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     )
                     data[ent.name] = native
 
-        except (ELMConnectionError, TimeoutError, OSError) as err:
-            await self._conn.async_disconnect()
+        except (OBDClientError, TimeoutError, OSError) as err:
+            await self.hass.async_add_executor_job(self._client.close)
             raise UpdateFailed(f"OBD2 connection error: {err}") from err
 
         return data
 
     async def async_shutdown(self) -> None:
-        await self._conn.async_disconnect()
+        await self.hass.async_add_executor_job(self._client.close)
 
     async def _update_read(self, ent: ProfileEntity) -> None:
         if ent.read_func == "batteryVoltage":
-            v = await self._protocol.async_read_battery_voltage()
+            v = await self.hass.async_add_executor_job(self._client.read_adapter_voltage)
             if v is None:
                 self._store.set_value(ent.name, 0.0, "")
             else:
@@ -273,16 +272,18 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.debug("Unsupported READ %s (service %s)", ent.name, ent.pid_service)
             return
 
-        ok, payload_hex, data = await self._protocol.async_request_mode01(ent.pid_number)
-        if not ok or not data:
-            self._store.set_value(ent.name, 0.0, payload_hex)
+        res = await self.hass.async_add_executor_job(
+            self._client.request_mode01, ent.pid_number
+        )
+        if not res.ok or not res.data_bytes:
+            self._store.set_value(ent.name, 0.0, res.payload_hex)
             return
 
         raw_val = decode_pid_bytes(
-            data,
+            res.data_bytes,
             ent.num_expected_bytes,
             ent.scale_factor,
             ent.bias,
         )
         typed = cast_value(raw_val, ent.value_type)
-        self._store.set_value(ent.name, typed, payload_hex)
+        self._store.set_value(ent.name, typed, res.payload_hex)
