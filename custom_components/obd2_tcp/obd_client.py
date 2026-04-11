@@ -11,8 +11,29 @@ import logging
 import re
 from typing import Any
 
-import obd
-from obd import OBDCommand
+import pint as _pint_obd_compat
+
+# python-OBD defines ``percent``, ``%``, and ``ppm`` in UnitsAndScaling.py even though
+# current Pint defaults already include them, which logs pint.util redefinition warnings
+# in Home Assistant. Silence that only while constructing python-OBD's registry.
+_orig_pint_unit_registry = _pint_obd_compat.UnitRegistry
+
+
+def _pint_unit_registry_for_obd_import(*args: Any, **kwargs: Any) -> Any:
+    merged = dict(kwargs)
+    merged["on_redefinition"] = "ignore"
+    try:
+        return _orig_pint_unit_registry(*args, **merged)
+    except TypeError:
+        return _orig_pint_unit_registry(*args, **kwargs)
+
+
+_pint_obd_compat.UnitRegistry = _pint_unit_registry_for_obd_import  # type: ignore[method-assign]
+try:
+    import obd
+    from obd import OBDCommand
+finally:
+    _pint_obd_compat.UnitRegistry = _orig_pint_unit_registry  # type: ignore[method-assign]
 
 from .const import DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V, DEFAULT_ELM_PP0E_HEX
 
