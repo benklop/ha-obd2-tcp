@@ -10,6 +10,7 @@ from typing import Any
 
 from .const import STATE_TYPE_CALC, STATE_TYPE_READ
 from .expressions import ExprParser, eval_scale_expression
+from .fuel_type_labels import sae_fuel_type_label
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -170,6 +171,8 @@ def format_sensor_native(
     """Apply value.format / value.func for HA state (simplified)."""
     if func == "toBitStr" and value_type == "int":
         return format(int(value), "b").zfill(32)
+    if func == "saeFuelType" and value_type == "int":
+        return sae_fuel_type_label(int(value))
     if func == "toMiles" and value_type == "int":
         return int(round(int(value) / 1.60934))
     if func == "toMiles" and value_type == "float":

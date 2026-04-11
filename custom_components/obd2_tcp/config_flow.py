@@ -40,6 +40,7 @@ from .const import (
     UNIT_TEMP_CELSIUS,
     UNIT_TEMP_FAHRENHEIT,
 )
+from .fuel_type_labels import fuel_type_config_select_options
 from .obd_client import PythonOBDClient
 from .profile import list_available_profiles
 
@@ -113,7 +114,15 @@ def _user_data_schema(profiles: list[str]) -> vol.Schema:
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional(CONF_FUEL_TYPE, default=FUEL_TYPE_GASOLINE): vol.Coerce(int),
+            vol.Optional(
+                CONF_FUEL_TYPE,
+                default=str(FUEL_TYPE_GASOLINE),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=fuel_type_config_select_options(),
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
         }
     )
 
@@ -200,7 +209,7 @@ class OBD2TCPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_PORT: int(ud[CONF_PORT]),
                 CONF_SCAN_INTERVAL: int(ud.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
                 CONF_PROFILE: ud.get(CONF_PROFILE, DEFAULT_PROFILE),
-                CONF_FUEL_TYPE: int(ud.get(CONF_FUEL_TYPE, FUEL_TYPE_GASOLINE)),
+                CONF_FUEL_TYPE: int(ud.get(CONF_FUEL_TYPE, str(FUEL_TYPE_GASOLINE))),
             }
             if ud.get(CONF_DEVICE_NAME):
                 data[CONF_DEVICE_NAME] = ud[CONF_DEVICE_NAME]

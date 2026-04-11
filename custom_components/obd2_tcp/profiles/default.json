@@ -91,7 +91,7 @@
     "visible": true,
     "interval": 5000,
     "name": "uptimeMinutes",
-    "description": "Integration uptime (minutes)",
+    "description": "Integration uptime",
     "icon": "timer-outline",
     "unit": "min",
     "deviceClass": "",

@@ -10,7 +10,7 @@
           "scan_interval": "Coordinator scan interval (seconds)",
           "device_name": "Device display name",
           "profile": "Profile (from profiles folder)",
-          "fuel_type": "Default fuel type code (for expressions; 1 = gasoline)"
+          "fuel_type": "Default fuel type (used in calculations when the ECU does not report fuel type)"
         }
       },
       "units": {
@@ -20,7 +20,7 @@
           "temperature_unit": "Temperature",
           "pressure_unit": "Barometric pressure",
           "speed_unit": "Vehicle speed",
-          "distance_unit": "Odometer-style distance (e.g. distance with MIL on)",
+          "distance_unit": "Unit for odometer-style distances such as distance with check engine on",
           "disable_elm_low_power": "Disable ELM327 low power (PP0E; VGate iCar only — others may brick)"
         }
       }
@@ -42,7 +42,7 @@
           "temperature_unit": "Temperature",
           "pressure_unit": "Barometric pressure",
           "speed_unit": "Vehicle speed",
-          "distance_unit": "Odometer-style distance (e.g. distance with MIL on)",
+          "distance_unit": "Unit for odometer-style distances such as distance with check engine on",
           "disable_elm_low_power": "Disable ELM327 low power (PP0E; VGate iCar only — others may brick)"
         }
       }
