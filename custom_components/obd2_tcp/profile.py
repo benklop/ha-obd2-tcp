@@ -11,6 +11,7 @@ from typing import Any
 from .const import STATE_TYPE_CALC, STATE_TYPE_READ
 from .expressions import ExprParser, eval_scale_expression
 from .fuel_type_labels import sae_fuel_type_label
+from .pid_text import format_fuel_system_status_u16, format_monitor_status_u32
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -171,6 +172,10 @@ def format_sensor_native(
     """Apply value.format / value.func for HA state (simplified)."""
     if func == "toBitStr" and value_type == "int":
         return format(int(value), "b").zfill(32)
+    if func == "saeMonitorStatus" and value_type == "int":
+        return format_monitor_status_u32(int(value))
+    if func == "saeFuelSystemStatus" and value_type == "int":
+        return format_fuel_system_status_u16(int(value))
     if func == "saeFuelType" and value_type == "int":
         return sae_fuel_type_label(int(value))
     if func == "toMiles" and value_type == "int":

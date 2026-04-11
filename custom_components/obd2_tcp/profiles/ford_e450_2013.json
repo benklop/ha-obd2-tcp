@@ -19,10 +19,10 @@
     "type": 0,
     "valueType": "int",
     "enabled": true,
-    "visible": true,
+    "visible": false,
     "interval": 5000,
     "name": "monitorStatus",
-    "description": "Raw emissions monitor status",
+    "description": "Emissions monitor status",
     "icon": "car-info",
     "unit": "",
     "deviceClass": "",
@@ -36,7 +36,7 @@
       "scaleFactor": "1",
       "bias": 0
     },
-    "value": { "func": "toBitStr" }
+    "value": { "func": "saeMonitorStatus" }
   },
   {
     "type": 0,
@@ -318,7 +318,7 @@
     "type": 0,
     "valueType": "int",
     "enabled": true,
-    "visible": true,
+    "visible": false,
     "interval": 10000,
     "name": "fuelSystemStatus",
     "description": "Fuel system status",
@@ -335,7 +335,24 @@
       "scaleFactor": "1",
       "bias": 0
     },
-    "value": { "func": "toBitStr" }
+    "value": { "func": "saeFuelSystemStatus" }
+  },
+  {
+    "type": 1,
+    "valueType": "int",
+    "enabled": true,
+    "visible": true,
+    "interval": 10000,
+    "name": "fuelSystemLoop",
+    "description": "Fuel system loop",
+    "icon": "engine",
+    "unit": "",
+    "deviceClass": "",
+    "measurement": false,
+    "diagnostic": true,
+    "expr": "($fuelSystemStatus)",
+    "pid": { "service": 0, "pid": 0, "numResponses": 0, "numExpectedBytes": 0, "bias": 0 },
+    "value": { "func": "saeFuelSystemStatus" }
   },
   {
     "type": 0,

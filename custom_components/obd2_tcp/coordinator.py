@@ -79,7 +79,9 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.config_entry = config_entry
         self.host = host
         self.port = port
-        self._profile_entities = [e for e in profile_entities if e.enabled and e.visible]
+        # All enabled entities are polled and kept in state for CALC dependencies.
+        # `entities` exposes only `visible` ones as Home Assistant sensors.
+        self._profile_entities = [e for e in profile_entities if e.enabled]
         self._fuel_type = fuel_type
         opts = dict(config_entry.options or {})
         data = dict(config_entry.data or {})
@@ -106,7 +108,7 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @property
     def entities(self) -> list[ProfileEntity]:
-        return self._profile_entities
+        return [e for e in self._profile_entities if e.visible]
 
     def native_unit_for(self, ent: ProfileEntity) -> str | None:
         """Native unit for Home Assistant (after user display preferences)."""
