@@ -14,6 +14,8 @@ from typing import Any
 import obd
 from obd import OBDCommand
 
+from .const import DEFAULT_ELM_PP0E_HEX
+
 _LOGGER = logging.getLogger(__name__)
 
 _HEX = re.compile(r"[0-9A-Fa-f]+")
@@ -35,12 +37,23 @@ class Mode01Result:
 class PythonOBDClient:
     """Thin wrapper around python-OBD for TCP sockets."""
 
-    def __init__(self, host: str, port: int, *, timeout: float = 8.0) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        *,
+        timeout: float = 8.0,
+        disable_elm_low_power: bool = False,
+        elm_pp0e_hex: str = DEFAULT_ELM_PP0E_HEX,
+    ) -> None:
         self._host = host
         self._port = int(port)
         self._timeout = float(timeout)
+        self._disable_elm_low_power = bool(disable_elm_low_power)
+        self._elm_pp0e_hex = elm_pp0e_hex.strip().upper()
         self._conn: obd.OBD | None = None
         self._cmd_cache: dict[int, OBDCommand] = {}
+        self._elm_low_power_pp_applied: bool = False
 
     @property
     def connected(self) -> bool:
@@ -50,7 +63,7 @@ class PythonOBDClient:
     def portstr(self) -> str:
         return f"socket://{self._host}:{self._port}"
 
-    def connect(self) -> None:
+    def connect(self, *, apply_elm_low_power_pp: bool = True) -> None:
         """Connect (or reconnect) to the adapter."""
         self.close()
         try:
@@ -72,6 +85,49 @@ class PythonOBDClient:
             self._conn = None
             raise OBDClientError("OBD connect failed: NOT_CONNECTED")
 
+        if apply_elm_low_power_pp:
+            self._maybe_apply_elm_disable_low_power()
+
+    def _maybe_apply_elm_disable_low_power(self) -> None:
+        """Set ELM327 PP0E to disable low-power (e.g. VGate iCar Wi‑Fi staying up)."""
+        if (
+            not self._disable_elm_low_power
+            or self._elm_low_power_pp_applied
+            or self._conn is None
+        ):
+            return
+
+        iface = getattr(self._conn, "interface", None)
+        if iface is None or not hasattr(iface, "send_and_parse"):
+            _LOGGER.warning("ELM low-power disable skipped: no ELM327 interface")
+            return
+
+        if len(self._elm_pp0e_hex) != 2 or not _HEX.fullmatch(self._elm_pp0e_hex):
+            _LOGGER.warning(
+                "ELM low-power disable skipped: invalid PP0E hex %r (need two hex digits)",
+                self._elm_pp0e_hex,
+            )
+            return
+
+        _LOGGER.warning(
+            "Writing ELM327 PP0E (low-power off) — only verified on VGate iCar; "
+            "other adapters may use different registers and be damaged"
+        )
+        try:
+            sv_cmd = f"ATPP0ESV{self._elm_pp0e_hex}".encode("ascii")
+            iface.send_and_parse(sv_cmd)
+            iface.send_and_parse(b"ATPP0EON")
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("ELM PP0E low-power disable failed: %s", err)
+            return
+
+        self._elm_low_power_pp_applied = True
+        _LOGGER.info(
+            "ELM PP0E updated for low-power off (SV%s, ON). "
+            "Power-cycle the adapter once if Wi‑Fi still sleeps; clones may ignore PP commands.",
+            self._elm_pp0e_hex,
+        )
+
     def close(self) -> None:
         if self._conn is not None:
             try:
@@ -82,15 +138,15 @@ class PythonOBDClient:
 
     def ensure_connected(self) -> None:
         if not self._conn:
-            self.connect()
+            self.connect(apply_elm_low_power_pp=True)
             return
         if self._conn.status() == obd.OBDStatus.NOT_CONNECTED:
-            self.connect()
+            self.connect(apply_elm_low_power_pp=True)
 
     def quick_probe(self) -> bool:
         """Best-effort probe used by config flow."""
         try:
-            self.connect()
+            self.connect(apply_elm_low_power_pp=False)
             return self._conn is not None and self._conn.status() != obd.OBDStatus.NOT_CONNECTED
         except OBDClientError:
             return False

@@ -9,7 +9,19 @@
           "port": "TCP port",
           "scan_interval": "Coordinator scan interval (seconds)",
           "device_name": "Device display name",
-          "profile": "Profile (from profiles folder)"
+          "profile": "Profile (from profiles folder)",
+          "fuel_type": "Default fuel type code (for expressions; 1 = gasoline)"
+        }
+      },
+      "units": {
+        "title": "Display units",
+        "description": "Choose how temperatures, pressure, speed, and distance are shown. OBD data is still read in standard ECU units; values are converted for Home Assistant. ELM327 low-power (PP0E) is only verified on VGate iCar Wi‑Fi; other adapters may be damaged if their programmable parameters differ.",
+        "data": {
+          "temperature_unit": "Temperature",
+          "pressure_unit": "Barometric pressure",
+          "speed_unit": "Vehicle speed",
+          "distance_unit": "Odometer-style distance (e.g. distance with MIL on)",
+          "disable_elm_low_power": "Disable ELM327 low power (PP0E; VGate iCar only — others may brick)"
         }
       }
     },
@@ -19,6 +31,21 @@
     },
     "abort": {
       "already_configured": "This host is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "OBD2 (TCP) units",
+        "description": "Update how measurements are displayed. PP0E low-power disable is only safe on VGate iCar‑class hardware tested with this integration; other ELM327 adapters can be bricked.",
+        "data": {
+          "temperature_unit": "Temperature",
+          "pressure_unit": "Barometric pressure",
+          "speed_unit": "Vehicle speed",
+          "distance_unit": "Odometer-style distance (e.g. distance with MIL on)",
+          "disable_elm_low_power": "Disable ELM327 low power (PP0E; VGate iCar only — others may brick)"
+        }
+      }
     }
   }
 }

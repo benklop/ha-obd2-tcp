@@ -36,6 +36,15 @@ class _FakeMessage:
         return self._raw
 
 
+class _FakeELM:
+    def __init__(self) -> None:
+        self.sent: list[bytes] = []
+
+    def send_and_parse(self, cmd: bytes) -> list:
+        self.sent.append(cmd)
+        return []
+
+
 class _FakeOBD:
     """Fake `obd.OBD` instance used to intercept calls from our wrapper."""
 
@@ -46,6 +55,7 @@ class _FakeOBD:
         self._timeout = timeout
         self._check_voltage = check_voltage
         self._query_handler = None
+        self.interface = _FakeELM()
 
     def close(self) -> None:
         self._status = obd.OBDStatus.NOT_CONNECTED
@@ -144,6 +154,34 @@ def test_read_adapter_voltage_magnitude(monkeypatch: pytest.MonkeyPatch) -> None
 
     v = c.read_adapter_voltage()
     assert v == 12.6
+
+
+def test_disable_elm_low_power_sends_pp_commands(monkeypatch: pytest.MonkeyPatch) -> None:
+    from obd2_tcp.obd_client import PythonOBDClient  # noqa: E402
+
+    monkeypatch.setattr(obd, "OBD", _FakeOBD)
+
+    c = PythonOBDClient("1.2.3.4", 35000, disable_elm_low_power=True)
+    c.connect()
+    assert c._conn is not None  # noqa: SLF001
+    assert c._conn.interface.sent == [b"ATPP0ESV7A", b"ATPP0EON"]  # noqa: SLF001
+
+
+def test_quick_probe_does_not_send_pp_commands(monkeypatch: pytest.MonkeyPatch) -> None:
+    from obd2_tcp.obd_client import PythonOBDClient  # noqa: E402
+
+    last: dict[str, _FakeOBD] = {}
+
+    class _RecordingFakeOBD(_FakeOBD):
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            last["obd"] = self
+
+    monkeypatch.setattr(obd, "OBD", _RecordingFakeOBD)
+
+    c = PythonOBDClient("1.2.3.4", 35000, disable_elm_low_power=True)
+    assert c.quick_probe() is True
+    assert last["obd"].interface.sent == []
 
 
 def test_fetch_dtcs_parses_codes(monkeypatch: pytest.MonkeyPatch) -> None:

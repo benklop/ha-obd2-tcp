@@ -11,12 +11,17 @@ from typing import Any
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
+    CONF_DISABLE_ELM_LOW_POWER,
     AF_RATIO_DIESEL,
     AF_RATIO_ETHANOL,
     AF_RATIO_GAS,
     AF_RATIO_GASOLINE,
     AF_RATIO_METHANOL,
     AF_RATIO_PROPANE,
+    CONF_UNIT_DISTANCE,
+    CONF_UNIT_PRESSURE,
+    CONF_UNIT_SPEED,
+    CONF_UNIT_TEMPERATURE,
     DENSITY_DIESEL,
     DENSITY_ETHANOL,
     DENSITY_GAS,
@@ -30,8 +35,19 @@ from .const import (
     FUEL_TYPE_LPG,
     FUEL_TYPE_METHANOL,
     FUEL_TYPE_PROPANE,
+    KMH_TO_MPH_FACTOR,
+    KPA_TO_PSI,
     STATE_TYPE_CALC,
     STATE_TYPE_READ,
+    UNIT_DISTANCE_KM,
+    UNIT_DISTANCE_MI,
+    UNIT_PRESSURE_BAR,
+    UNIT_PRESSURE_KPA,
+    UNIT_PRESSURE_PSI,
+    UNIT_SPEED_KMH,
+    UNIT_SPEED_MPH,
+    UNIT_TEMP_CELSIUS,
+    UNIT_TEMP_FAHRENHEIT,
 )
 from .expressions import ExprParser
 from .obd_client import OBDClientError, PythonOBDClient
@@ -65,7 +81,19 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.port = port
         self._profile_entities = [e for e in profile_entities if e.enabled and e.visible]
         self._fuel_type = fuel_type
-        self._client = PythonOBDClient(host, port)
+        opts = dict(config_entry.options or {})
+        data = dict(config_entry.data or {})
+        self._unit_temperature = opts.get(CONF_UNIT_TEMPERATURE, UNIT_TEMP_CELSIUS)
+        self._unit_pressure = opts.get(CONF_UNIT_PRESSURE, UNIT_PRESSURE_KPA)
+        self._unit_speed = opts.get(CONF_UNIT_SPEED, UNIT_SPEED_KMH)
+        self._unit_distance = opts.get(CONF_UNIT_DISTANCE, UNIT_DISTANCE_KM)
+        disable_elm_lp = bool(
+            opts.get(
+                CONF_DISABLE_ELM_LOW_POWER,
+                data.get(CONF_DISABLE_ELM_LOW_POWER, False),
+            )
+        )
+        self._client = PythonOBDClient(host, port, disable_elm_low_power=disable_elm_lp)
         self._last_dtcs: list[str] = []
         self._store = StateStore()
         self._lock = asyncio.Lock()
@@ -79,6 +107,46 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     @property
     def entities(self) -> list[ProfileEntity]:
         return self._profile_entities
+
+    def native_unit_for(self, ent: ProfileEntity) -> str | None:
+        """Native unit for Home Assistant (after user display preferences)."""
+        dc = ent.device_class or ""
+        if dc == "temperature":
+            return "°F" if self._unit_temperature == UNIT_TEMP_FAHRENHEIT else "°C"
+        if dc == "speed":
+            return "mph" if self._unit_speed == UNIT_SPEED_MPH else "km/h"
+        if dc == "pressure":
+            if self._unit_pressure == UNIT_PRESSURE_PSI:
+                return "psi"
+            if self._unit_pressure == UNIT_PRESSURE_BAR:
+                return "bar"
+            return "kPa"
+        if dc == "distance":
+            return "mi" if self._unit_distance == UNIT_DISTANCE_MI else "km"
+        u = ent.unit or ""
+        return u if u else None
+
+    def _apply_user_units(
+        self, ent: ProfileEntity, native: float | int | str | bool
+    ) -> float | int | str | bool:
+        if isinstance(native, (str, bool)):
+            return native
+        dc = ent.device_class or ""
+        if dc == "temperature" and self._unit_temperature == UNIT_TEMP_FAHRENHEIT:
+            v = float(native)
+            return round(v * 9.0 / 5.0 + 32.0, 1)
+        if dc == "speed" and self._unit_speed == UNIT_SPEED_MPH:
+            return int(round(float(native) * KMH_TO_MPH_FACTOR))
+        if dc == "pressure":
+            v = float(native)
+            if self._unit_pressure == UNIT_PRESSURE_PSI:
+                return round(v * KPA_TO_PSI, 2)
+            if self._unit_pressure == UNIT_PRESSURE_BAR:
+                return round(v / 100.0, 3)
+            return native
+        if dc == "distance" and self._unit_distance == UNIT_DISTANCE_MI:
+            return int(round(float(native) * KMH_TO_MPH_FACTOR))
+        return native
 
     def _af_ratio(self, fuel: float) -> float:
         k = int(fuel)
@@ -248,7 +316,7 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         ent.value_expr,
                         payload,
                     )
-                    data[ent.name] = native
+                    data[ent.name] = self._apply_user_units(ent, native)
 
         except (OBDClientError, TimeoutError, OSError) as err:
             await self.hass.async_add_executor_job(self._client.close)
@@ -263,7 +331,7 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if ent.read_func == "batteryVoltage":
             v = await self.hass.async_add_executor_job(self._client.read_adapter_voltage)
             if v is None:
-                self._store.set_value(ent.name, 0.0, "")
+                self._store.invalidate(ent.name)
             else:
                 self._store.set_value(ent.name, float(v), f"{v}")
             return
@@ -276,7 +344,7 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._client.request_mode01, ent.pid_number
         )
         if not res.ok or not res.data_bytes:
-            self._store.set_value(ent.name, 0.0, res.payload_hex)
+            self._store.invalidate(ent.name)
             return
 
         raw_val = decode_pid_bytes(

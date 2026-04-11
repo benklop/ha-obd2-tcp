@@ -47,7 +47,8 @@ class OBD2TcpSensor(CoordinatorEntity[OBD2TCPCoordinator], SensorEntity):
         self.entity_description = SensorEntityDescription(
             key=entity.name,
             name=entity.description,
-            native_unit_of_measurement=entity.unit or None,
+            native_unit_of_measurement=coordinator.native_unit_for(entity)
+            or (entity.unit or None),
             icon=f"mdi:{entity.icon}" if entity.icon else None,
             device_class=entity.device_class or None,
             state_class=SensorStateClass.MEASUREMENT

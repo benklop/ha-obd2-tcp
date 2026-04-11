@@ -59,6 +59,15 @@ class StateStore:
         if payload is not None:
             ent.payload = payload
 
+    def invalidate(self, name: str) -> None:
+        """Mark a state as having no valid sample (e.g. OBD NO DATA when ignition/engine off)."""
+        ent = self.ensure(name)
+        ent.old_value = ent.value
+        ent.previous_update = ent.last_update
+        ent.value = 0
+        ent.last_update = 0.0
+        ent.payload = None
+
     def extract_payload_bytes(
         self, name: str, start_1based: int, end_1based_exclusive: int | None
     ) -> float:
