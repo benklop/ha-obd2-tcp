@@ -11,6 +11,7 @@ from typing import Any
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
+    CONF_ADAPTER_VOLTAGE_OFFSET,
     CONF_DISABLE_ELM_LOW_POWER,
     AF_RATIO_DIESEL,
     AF_RATIO_ETHANOL,
@@ -18,6 +19,7 @@ from .const import (
     AF_RATIO_GASOLINE,
     AF_RATIO_METHANOL,
     AF_RATIO_PROPANE,
+    DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V,
     CONF_UNIT_DISTANCE,
     CONF_UNIT_PRESSURE,
     CONF_UNIT_SPEED,
@@ -95,7 +97,18 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 data.get(CONF_DISABLE_ELM_LOW_POWER, False),
             )
         )
-        self._client = PythonOBDClient(host, port, disable_elm_low_power=disable_elm_lp)
+        rv_offset = float(
+            opts.get(
+                CONF_ADAPTER_VOLTAGE_OFFSET,
+                DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V,
+            )
+        )
+        self._client = PythonOBDClient(
+            host,
+            port,
+            disable_elm_low_power=disable_elm_lp,
+            adapter_rv_offset_v=rv_offset,
+        )
         self._last_dtcs: list[str] = []
         self._store = StateStore()
         self._lock = asyncio.Lock()

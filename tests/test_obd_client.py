@@ -152,8 +152,32 @@ def test_read_adapter_voltage_magnitude(monkeypatch: pytest.MonkeyPatch) -> None
         is_null=False,
     )
 
+    from obd2_tcp.const import DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V
+
     v = c.read_adapter_voltage()
-    assert v == 12.6
+    assert v == pytest.approx(12.6 + DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V)
+
+
+def test_read_adapter_voltage_zero_offset(monkeypatch: pytest.MonkeyPatch) -> None:
+    from obd2_tcp.obd_client import PythonOBDClient  # noqa: E402
+
+    monkeypatch.setattr(obd, "OBD", _FakeOBD)
+
+    class _Qty:
+        def __init__(self, magnitude: float) -> None:
+            self.magnitude = magnitude
+
+    c = PythonOBDClient("1.2.3.4", 35000, adapter_rv_offset_v=0.0)
+    c.connect()
+    assert c._conn is not None  # noqa: SLF001
+    c._conn._query_handler = lambda cmd: _FakeResponse(  # noqa: SLF001
+        messages=[_FakeMessage("OK")],
+        value=_Qty(12.4),
+        is_null=False,
+    )
+
+    v = c.read_adapter_voltage()
+    assert v == pytest.approx(12.4)
 
 
 def test_disable_elm_low_power_sends_pp_commands(monkeypatch: pytest.MonkeyPatch) -> None:

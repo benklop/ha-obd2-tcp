@@ -40,6 +40,10 @@ ELM_TIMEOUT: Final = 8.0
 ELM_READ_CHUNK: Final = 256
 ELM_PROMPT: Final = b">"
 
+# AT RV reports pin-16 voltage; many adapters sense through a protection diode (~0.6 V silicon).
+CONF_ADAPTER_VOLTAGE_OFFSET: Final = "adapter_voltage_offset"
+DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V: Final = 0.6
+
 # Fuel types (match obd.h)
 FUEL_TYPE_GASOLINE: Final = 1
 FUEL_TYPE_METHANOL: Final = 2

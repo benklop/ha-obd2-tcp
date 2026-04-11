@@ -14,6 +14,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_ADAPTER_VOLTAGE_OFFSET,
     CONF_DEVICE_NAME,
     CONF_DISABLE_ELM_LOW_POWER,
     CONF_FUEL_TYPE,
@@ -25,6 +26,7 @@ from .const import (
     CONF_UNIT_PRESSURE,
     CONF_UNIT_SPEED,
     CONF_UNIT_TEMPERATURE,
+    DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V,
     DEFAULT_PORT,
     DEFAULT_PROFILE,
     DEFAULT_SCAN_INTERVAL,
@@ -47,7 +49,7 @@ from .profile import list_available_profiles
 _LOGGER = logging.getLogger(__name__)
 
 
-def _options_schema(suggested: dict[str, str | bool]) -> vol.Schema:
+def _options_schema(suggested: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(
@@ -90,6 +92,23 @@ def _options_schema(suggested: dict[str, str | bool]) -> vol.Schema:
                 CONF_DISABLE_ELM_LOW_POWER,
                 default=bool(suggested.get(CONF_DISABLE_ELM_LOW_POWER, False)),
             ): selector.BooleanSelector(),
+            vol.Required(
+                CONF_ADAPTER_VOLTAGE_OFFSET,
+                default=float(
+                    suggested.get(
+                        CONF_ADAPTER_VOLTAGE_OFFSET,
+                        DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V,
+                    )
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0.0,
+                    max=2.0,
+                    step=0.05,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="V",
+                )
+            ),
         }
     )
 
@@ -220,12 +239,13 @@ class OBD2TCPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 options=dict(user_input),
             )
 
-        suggested: dict[str, str | bool] = {
+        suggested: dict[str, Any] = {
             CONF_UNIT_TEMPERATURE: UNIT_TEMP_CELSIUS,
             CONF_UNIT_PRESSURE: UNIT_PRESSURE_KPA,
             CONF_UNIT_SPEED: UNIT_SPEED_KMH,
             CONF_UNIT_DISTANCE: UNIT_DISTANCE_KM,
             CONF_DISABLE_ELM_LOW_POWER: False,
+            CONF_ADAPTER_VOLTAGE_OFFSET: DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V,
         }
         return self.async_show_form(
             step_id="units",
@@ -242,11 +262,17 @@ class OBD2TCPOptionsFlowHandler(config_entries.OptionsFlowWithReload):
         if user_input is not None:
             return self.async_create_entry(data=user_input)
 
-        current: dict[str, str | bool] = dict(self.config_entry.options or {})
+        current: dict[str, Any] = dict(self.config_entry.options or {})
         if CONF_DISABLE_ELM_LOW_POWER not in current:
             current[CONF_DISABLE_ELM_LOW_POWER] = bool(
                 self.config_entry.data.get(CONF_DISABLE_ELM_LOW_POWER, False)
             )
+        current[CONF_ADAPTER_VOLTAGE_OFFSET] = float(
+            current.get(
+                CONF_ADAPTER_VOLTAGE_OFFSET,
+                DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V,
+            )
+        )
         return self.async_show_form(
             step_id="init",
             data_schema=_options_schema(current),

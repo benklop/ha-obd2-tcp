@@ -13,7 +13,8 @@
     "measurement": true,
     "diagnostic": false,
     "readFunc": "batteryVoltage",
-    "pid": { "service": 0, "pid": 0, "numResponses": 0, "numExpectedBytes": 0, "bias": 0 }
+    "pid": { "service": 0, "pid": 0, "numResponses": 0, "numExpectedBytes": 0, "bias": 0 },
+    "value": { "format": "%.1f" }
   },
   {
     "type": 0,

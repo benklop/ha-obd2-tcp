@@ -14,7 +14,7 @@ from typing import Any
 import obd
 from obd import OBDCommand
 
-from .const import DEFAULT_ELM_PP0E_HEX
+from .const import DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V, DEFAULT_ELM_PP0E_HEX
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,12 +45,14 @@ class PythonOBDClient:
         timeout: float = 8.0,
         disable_elm_low_power: bool = False,
         elm_pp0e_hex: str = DEFAULT_ELM_PP0E_HEX,
+        adapter_rv_offset_v: float = DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V,
     ) -> None:
         self._host = host
         self._port = int(port)
         self._timeout = float(timeout)
         self._disable_elm_low_power = bool(disable_elm_low_power)
         self._elm_pp0e_hex = elm_pp0e_hex.strip().upper()
+        self._adapter_rv_offset_v = float(adapter_rv_offset_v)
         self._conn: obd.OBD | None = None
         self._cmd_cache: dict[int, OBDCommand] = {}
         self._elm_low_power_pp_applied: bool = False
@@ -154,7 +156,11 @@ class PythonOBDClient:
             self.close()
 
     def read_adapter_voltage(self) -> float | None:
-        """Adapter voltage via AT RV (python-OBD: ELM_VOLTAGE)."""
+        """Adapter-reported vehicle voltage via AT RV (python-OBD: ELM_VOLTAGE).
+
+        Adds ``adapter_rv_offset_v`` (from integration options) to approximate true battery
+        voltage when the dongle senses pin 16 through a protection diode.
+        """
         self.ensure_connected()
         assert self._conn is not None
 
@@ -167,8 +173,9 @@ class PythonOBDClient:
             return None
 
         try:
-            # Pint quantity -> magnitude (volts)
-            return float(getattr(r.value, "magnitude", r.value))
+            # Pint quantity -> magnitude (volts), then correct typical adapter diode drop.
+            raw = float(getattr(r.value, "magnitude", r.value))
+            return raw + self._adapter_rv_offset_v
         except (TypeError, ValueError):
             return None
 
