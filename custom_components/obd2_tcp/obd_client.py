@@ -55,6 +55,9 @@ _IGN_LOW = re.compile(r"\bLOW\b|\bOFF\b", re.I)
 # Short pause before retrying AT IGN preflight (cheap; pick up ignition quickly).
 _IGNITION_BACKOFF_S = 2.0
 
+# Wi‑Fi / TCP bridges can be slow to emit the ELM banner and `>` prompt.
+_IGN_PREFLIGHT_FIRST_PROMPT_S = 20.0
+
 
 class OBDClientError(Exception):
     """Wrapper error for connection/query failures."""
@@ -220,18 +223,26 @@ class PythonOBDClient:
             return pin_high
         return not pin_high
 
+    def _car_connected(self) -> bool:
+        """True only when python-OBD reports the ECU protocol is active (safe for Mode 01)."""
+        if not self._conn or self._conn.interface is None:
+            return False
+        return self._conn.status() == obd.OBDStatus.CAR_CONNECTED
+
     def _preflight_ign_mon(self) -> bool | None:
         """Run AT IGN on a short-lived serial session. True=proceed, False=skip, None=fail-open."""
         ser: Any = None
         try:
-            tmo = min(3.0, max(1.0, self._timeout))
+            # Longer read timeout helps Wi‑Fi ELM bridges; first prompt can take many seconds.
+            tmo = max(5.0, min(15.0, self._timeout * 2))
             ser = serial.serial_for_url(
                 self.portstr,
                 timeout=tmo,
                 write_timeout=tmo,
             )
-            dl = max(8.0, self._timeout)
-            buf = self._serial_read_until_prompt(ser, deadline_s=dl)
+            dl_first = max(_IGN_PREFLIGHT_FIRST_PROMPT_S, self._timeout)
+            dl = max(12.0, self._timeout)
+            buf = self._serial_read_until_prompt(ser, deadline_s=dl_first)
             self._serial_send_until_prompt(ser, b"AT E0\r", deadline_s=dl)
             self._serial_send_until_prompt(ser, b"AT L0\r", deadline_s=dl)
             ign_buf = self._serial_send_until_prompt(ser, b"AT IGN\r", deadline_s=dl)
@@ -282,6 +293,10 @@ class PythonOBDClient:
             sv_cmd = f"ATPP0ESV{self._elm_pp0e_hex}".encode("ascii")
             iface.send_and_parse(sv_cmd)
             iface.send_and_parse(b"ATPP0EON")
+        except TypeError as err:
+            _LOGGER.warning("ELM PP0E low-power disable failed (stale link): %s", err)
+            self.close()
+            return
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("ELM PP0E low-power disable failed: %s", err)
             return
@@ -309,6 +324,10 @@ class PythonOBDClient:
         if not self._conn:
             self.connect(apply_elm_low_power_pp=True)
             return
+        if self._conn.interface is None:
+            self.close()
+            self.connect(apply_elm_low_power_pp=True)
+            return
         if self._conn.status() == obd.OBDStatus.NOT_CONNECTED:
             self.connect(apply_elm_low_power_pp=True)
 
@@ -333,6 +352,9 @@ class PythonOBDClient:
 
         try:
             r = self._conn.query(obd.commands.ELM_VOLTAGE, force=True)
+        except TypeError as err:
+            self.close()
+            raise OBDClientError(f"ELM_VOLTAGE failed: {err}") from err
         except Exception as err:  # noqa: BLE001
             raise OBDClientError(f"ELM_VOLTAGE failed: {err}") from err
 
@@ -350,6 +372,8 @@ class PythonOBDClient:
         """Mode 03 DTCs via python-OBD GET_DTC."""
         self.ensure_connected()
         assert self._conn is not None
+        if not self._car_connected():
+            return []
 
         try:
             r = self._conn.query(obd.commands.GET_DTC, force=True)
@@ -379,6 +403,8 @@ class PythonOBDClient:
         """
         self.ensure_connected()
         assert self._conn is not None
+        if not self._car_connected():
+            return Mode01Result(False, "", [])
 
         pid_int = int(pid)
         cmd = self._cmd_cache.get(pid_int)
@@ -400,6 +426,10 @@ class PythonOBDClient:
 
         try:
             r = self._conn.query(cmd, force=True)
+        except TypeError as err:
+            # python-OBD can leave ELM327 with __protocol None after TCP drop; recover.
+            self.close()
+            raise OBDClientError(f"Mode01 {pid_int:02X} failed: {err}") from err
         except Exception as err:  # noqa: BLE001
             raise OBDClientError(f"Mode01 {pid_int:02X} failed: {err}") from err
 
