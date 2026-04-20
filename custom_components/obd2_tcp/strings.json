@@ -22,7 +22,9 @@
           "speed_unit": "Vehicle speed",
           "distance_unit": "Unit for odometer-style distances such as distance with check engine on",
           "disable_elm_low_power": "Disable ELM327 low power (PP0E; VGate iCar only — others may brick)",
-          "adapter_voltage_offset": "AT RV adapter voltage correction (volts added; use 0 if readings already match the battery)"
+          "adapter_voltage_offset": "AT RV adapter voltage correction (volts added; use 0 if readings already match the battery)",
+          "use_ign_gate": "Gate OBD connect on AT IGN (IgnMon); skips ECU protocol probing when ignition appears off",
+          "ign_active_high": "IgnMon HIGH means ignition on (disable if your adapter uses inverted sense)"
         }
       }
     },
@@ -45,7 +47,9 @@
           "speed_unit": "Vehicle speed",
           "distance_unit": "Unit for odometer-style distances such as distance with check engine on",
           "disable_elm_low_power": "Disable ELM327 low power (PP0E; VGate iCar only — others may brick)",
-          "adapter_voltage_offset": "AT RV adapter voltage correction (volts added; use 0 if readings already match the battery)"
+          "adapter_voltage_offset": "AT RV adapter voltage correction (volts added; use 0 if readings already match the battery)",
+          "use_ign_gate": "Gate OBD connect on AT IGN (IgnMon); skips ECU protocol probing when ignition appears off",
+          "ign_active_high": "IgnMon HIGH means ignition on (disable if your adapter uses inverted sense)"
         }
       }
     }

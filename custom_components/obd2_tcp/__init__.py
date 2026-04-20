@@ -51,12 +51,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         fuel_type=int(entry.data.get(CONF_FUEL_TYPE, FUEL_TYPE_GASOLINE)),
     )
 
-    await coordinator.async_config_entry_first_refresh()
-
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Do not block integration setup on vehicle connectivity. When the vehicle/adapter
+    # is offline, entities should simply be unavailable until a future refresh succeeds.
+    hass.async_create_task(coordinator.async_refresh())
     return True
 
 

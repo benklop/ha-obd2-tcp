@@ -19,6 +19,7 @@ from .const import (
     CONF_DISABLE_ELM_LOW_POWER,
     CONF_FUEL_TYPE,
     CONF_HOST,
+    CONF_IGN_ACTIVE_HIGH,
     CONF_PORT,
     CONF_PROFILE,
     CONF_SCAN_INTERVAL,
@@ -26,10 +27,13 @@ from .const import (
     CONF_UNIT_PRESSURE,
     CONF_UNIT_SPEED,
     CONF_UNIT_TEMPERATURE,
+    CONF_USE_IGN_GATE,
     DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V,
+    DEFAULT_IGN_ACTIVE_HIGH,
     DEFAULT_PORT,
     DEFAULT_PROFILE,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_USE_IGN_GATE,
     DOMAIN,
     FUEL_TYPE_GASOLINE,
     UNIT_DISTANCE_KM,
@@ -109,6 +113,16 @@ def _options_schema(suggested: dict[str, Any]) -> vol.Schema:
                     unit_of_measurement="V",
                 )
             ),
+            vol.Required(
+                CONF_USE_IGN_GATE,
+                default=bool(suggested.get(CONF_USE_IGN_GATE, DEFAULT_USE_IGN_GATE)),
+            ): selector.BooleanSelector(),
+            vol.Required(
+                CONF_IGN_ACTIVE_HIGH,
+                default=bool(
+                    suggested.get(CONF_IGN_ACTIVE_HIGH, DEFAULT_IGN_ACTIVE_HIGH)
+                ),
+            ): selector.BooleanSelector(),
         }
     )
 
@@ -246,6 +260,8 @@ class OBD2TCPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_UNIT_DISTANCE: UNIT_DISTANCE_KM,
             CONF_DISABLE_ELM_LOW_POWER: False,
             CONF_ADAPTER_VOLTAGE_OFFSET: DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V,
+            CONF_USE_IGN_GATE: DEFAULT_USE_IGN_GATE,
+            CONF_IGN_ACTIVE_HIGH: DEFAULT_IGN_ACTIVE_HIGH,
         }
         return self.async_show_form(
             step_id="units",
@@ -273,6 +289,10 @@ class OBD2TCPOptionsFlowHandler(config_entries.OptionsFlowWithReload):
                 DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V,
             )
         )
+        if CONF_USE_IGN_GATE not in current:
+            current[CONF_USE_IGN_GATE] = DEFAULT_USE_IGN_GATE
+        if CONF_IGN_ACTIVE_HIGH not in current:
+            current[CONF_IGN_ACTIVE_HIGH] = DEFAULT_IGN_ACTIVE_HIGH
         return self.async_show_form(
             step_id="init",
             data_schema=_options_schema(current),

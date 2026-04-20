@@ -13,6 +13,10 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     CONF_ADAPTER_VOLTAGE_OFFSET,
     CONF_DISABLE_ELM_LOW_POWER,
+    CONF_IGN_ACTIVE_HIGH,
+    CONF_USE_IGN_GATE,
+    DEFAULT_IGN_ACTIVE_HIGH,
+    DEFAULT_USE_IGN_GATE,
     AF_RATIO_DIESEL,
     AF_RATIO_ETHANOL,
     AF_RATIO_GAS,
@@ -52,7 +56,12 @@ from .const import (
     UNIT_TEMP_FAHRENHEIT,
 )
 from .expressions import ExprParser
-from .obd_client import OBDClientError, PythonOBDClient
+from .obd_client import (
+    OBDClientBackoffError,
+    OBDClientError,
+    OBDClientIgnitionOff,
+    PythonOBDClient,
+)
 from .profile import (
     ProfileEntity,
     cast_value,
@@ -103,11 +112,22 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 DEFAULT_ADAPTER_AT_RV_VOLTAGE_OFFSET_V,
             )
         )
+        use_ign_gate = bool(
+            opts.get(CONF_USE_IGN_GATE, data.get(CONF_USE_IGN_GATE, DEFAULT_USE_IGN_GATE))
+        )
+        ign_active_high = bool(
+            opts.get(
+                CONF_IGN_ACTIVE_HIGH,
+                data.get(CONF_IGN_ACTIVE_HIGH, DEFAULT_IGN_ACTIVE_HIGH),
+            )
+        )
         self._client = PythonOBDClient(
             host,
             port,
             disable_elm_low_power=disable_elm_lp,
             adapter_rv_offset_v=rv_offset,
+            use_ign_gate=use_ign_gate,
+            ign_active_high=ign_active_high,
         )
         self._last_dtcs: list[str] = []
         self._store = StateStore()
@@ -294,28 +314,35 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 for ent in self._profile_entities:
                     self._store.ensure(ent.name)
 
-                await self.hass.async_add_executor_job(self._client.ensure_connected)
+                soft_skip = False
+                try:
+                    await self.hass.async_add_executor_job(self._client.ensure_connected)
+                except (OBDClientBackoffError, OBDClientIgnitionOff):
+                    soft_skip = True
 
-                read_list = [
-                    e
-                    for e in self._profile_entities
-                    if e.state_type == STATE_TYPE_READ and self._is_due(e, now_ms)
-                ]
-                read_list.sort(key=lambda x: x.name)
+                if not soft_skip:
+                    read_list = [
+                        e
+                        for e in self._profile_entities
+                        if e.state_type == STATE_TYPE_READ and self._is_due(e, now_ms)
+                    ]
+                    read_list.sort(key=lambda x: x.name)
 
-                for ent in read_list:
-                    await self._update_read(ent)
+                    for ent in read_list:
+                        await self._update_read(ent)
 
-                calc_list = [
-                    e
-                    for e in self._profile_entities
-                    if e.state_type == STATE_TYPE_CALC and e.expr and self._is_due(e, now_ms)
-                ]
+                    calc_list = [
+                        e
+                        for e in self._profile_entities
+                        if e.state_type == STATE_TYPE_CALC
+                        and e.expr
+                        and self._is_due(e, now_ms)
+                    ]
 
-                for ent in calc_list:
-                    val = await self._eval_calc(ent.expr)
-                    typed = cast_value(val, ent.value_type)
-                    self._store.set_value(ent.name, typed, None)
+                    for ent in calc_list:
+                        val = await self._eval_calc(ent.expr)
+                        typed = cast_value(val, ent.value_type)
+                        self._store.set_value(ent.name, typed, None)
 
                 for ent in self._profile_entities:
                     st = self._store.get_entry(ent.name)

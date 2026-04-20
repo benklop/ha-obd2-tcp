@@ -12,6 +12,12 @@ CONF_DEVICE_NAME: Final = "device_name"
 CONF_FUEL_TYPE: Final = "fuel_type"
 CONF_DISABLE_ELM_LOW_POWER: Final = "disable_elm_low_power"
 
+# IgnMon (ELM327 pin 15): gate full OBD connect on AT IGN when enabled (options).
+CONF_USE_IGN_GATE: Final = "use_ign_gate"
+CONF_IGN_ACTIVE_HIGH: Final = "ign_active_high"
+DEFAULT_USE_IGN_GATE: Final = True
+DEFAULT_IGN_ACTIVE_HIGH: Final = True
+
 # ELM327 programmable parameter PP0E (hex byte) — default matches common VGate iCar Wi‑Fi stock → low‑power off; see README.
 DEFAULT_ELM_PP0E_HEX: Final = "7A"
 
