@@ -71,17 +71,15 @@ class OBD2TcpSensor(CoordinatorEntity[OBD2TCPCoordinator], SensorEntity):
 
     @property
     def native_value(self) -> StateType:
+        # Coordinator.data is None until the first refresh (non-blocking setup).
         data = self.coordinator.data
-        if data is None:
+        if not isinstance(data, dict):
             return None
         return data.get(self._profile.name)
 
     @property
     def available(self) -> bool:
         data = self.coordinator.data
-        if data is None:
+        if not isinstance(data, dict):
             return False
-        return (
-            self.coordinator.last_update_success
-            and self._profile.name in data
-        )
+        return self.coordinator.last_update_success and self._profile.name in data
