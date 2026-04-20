@@ -428,4 +428,3 @@ class PythonOBDClient:
             return Mode01Result(False, data_hex, [])
 
         return Mode01Result(True, data_hex, data_bytes)
-
