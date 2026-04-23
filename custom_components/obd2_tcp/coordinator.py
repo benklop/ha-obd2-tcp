@@ -60,6 +60,7 @@ from .obd_client import (
     OBDClientBackoffError,
     OBDClientError,
     OBDClientIgnitionOff,
+    OBDClientUnavailable,
     PythonOBDClient,
 )
 from .profile import (
@@ -132,6 +133,8 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_dtcs: list[str] = []
         self._store = StateStore()
         self._lock = asyncio.Lock()
+        # False until we complete a scan where the adapter reports an ECU link (see _async_update_data).
+        self._obd2_reachable: bool = False
         super().__init__(
             hass,
             _LOGGER,
@@ -305,22 +308,48 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return True
         return st.last_update + ent.interval <= now_ms
 
+    @property
+    def obd2_reachable(self) -> bool:
+        """True when the last poll got an ELM/ECU link; False when ign/backoff/ECU off-line."""
+        return self._obd2_reachable
+
+    def _entity_values_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for ent in self._profile_entities:
+            st = self._store.get_entry(ent.name)
+            if st is None or st.last_update == 0:
+                out[ent.name] = None
+                continue
+            payload = st.payload if ent.state_type == STATE_TYPE_READ else None
+            native = format_sensor_native(
+                st.value,
+                ent.value_type,
+                ent.value_format,
+                ent.value_func,
+                ent.value_expr,
+                payload,
+            )
+            out[ent.name] = self._apply_user_units(ent, native)
+        return out
+
     async def _async_update_data(self) -> dict[str, Any]:
         now_ms = self._store.millis()
-        data: dict[str, Any] = {}
-
         try:
             async with self._lock:
                 for ent in self._profile_entities:
                     self._store.ensure(ent.name)
 
-                soft_skip = False
+                link_up = False
                 try:
                     await self.hass.async_add_executor_job(self._client.ensure_connected)
-                except (OBDClientBackoffError, OBDClientIgnitionOff):
-                    soft_skip = True
-
-                if not soft_skip:
+                except (
+                    OBDClientBackoffError,
+                    OBDClientIgnitionOff,
+                    OBDClientUnavailable,
+                ):
+                    self._obd2_reachable = False
+                else:
+                    link_up = True
                     read_list = [
                         e
                         for e in self._profile_entities
@@ -329,42 +358,37 @@ class OBD2TCPCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     read_list.sort(key=lambda x: x.name)
 
                     for ent in read_list:
-                        await self._update_read(ent)
+                        try:
+                            await self._update_read(ent)
+                        except OBDClientUnavailable:
+                            link_up = False
+                            break
 
-                    calc_list = [
-                        e
-                        for e in self._profile_entities
-                        if e.state_type == STATE_TYPE_CALC
-                        and e.expr
-                        and self._is_due(e, now_ms)
-                    ]
+                    if link_up:
+                        calc_list = [
+                            e
+                            for e in self._profile_entities
+                            if e.state_type == STATE_TYPE_CALC
+                            and e.expr
+                            and self._is_due(e, now_ms)
+                        ]
 
-                    for ent in calc_list:
-                        val = await self._eval_calc(ent.expr)
-                        typed = cast_value(val, ent.value_type)
-                        self._store.set_value(ent.name, typed, None)
+                        for ent in calc_list:
+                            val = await self._eval_calc(ent.expr)
+                            typed = cast_value(val, ent.value_type)
+                            self._store.set_value(ent.name, typed, None)
 
-                for ent in self._profile_entities:
-                    st = self._store.get_entry(ent.name)
-                    if st is None or st.last_update == 0:
-                        data[ent.name] = None
-                        continue
-                    payload = st.payload if ent.state_type == STATE_TYPE_READ else None
-                    native = format_sensor_native(
-                        st.value,
-                        ent.value_type,
-                        ent.value_format,
-                        ent.value_func,
-                        ent.value_expr,
-                        payload,
-                    )
-                    data[ent.name] = self._apply_user_units(ent, native)
+                    self._obd2_reachable = link_up
+
+                return self._entity_values_dict()
+
+        except OBDClientUnavailable:
+            self._obd2_reachable = False
+            return self._entity_values_dict()
 
         except (OBDClientError, TimeoutError, OSError) as err:
             await self.hass.async_add_executor_job(self._client.close)
             raise UpdateFailed(f"OBD2 connection error: {err}") from err
-
-        return data
 
     async def async_shutdown(self) -> None:
         await self.hass.async_add_executor_job(self._client.close)

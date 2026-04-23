@@ -49,7 +49,8 @@ class _FakeOBD:
     """Fake `obd.OBD` instance used to intercept calls from our wrapper."""
 
     def __init__(self, portstr=None, baudrate=None, protocol=None, fast=True, timeout=0.1, check_voltage=True, start_low_power=False):  # noqa: E501
-        self._status = obd.OBDStatus.ELM_CONNECTED
+        # Mode 01 / DTC tests expect an ECU link (see _car_connected in obd_client).
+        self._status = obd.OBDStatus.CAR_CONNECTED
         self._portstr = portstr
         self._fast = fast
         self._timeout = timeout
@@ -112,6 +113,29 @@ def test_request_mode01_extracts_bytes(monkeypatch: pytest.MonkeyPatch) -> None:
     assert res2.data_bytes[:2] == [0x1A, 0xF8]
     assert 0x0C in c._cmd_cache  # noqa: SLF001
     assert isinstance(c._cmd_cache[0x0C], obd.OBDCommand)  # noqa: SLF001
+
+
+def test_request_mode01_non_callable_raw_returns_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Malformed python-OBD messages (raw=None) must not raise — vehicle-off ECU quirks."""
+    from obd2_tcp.obd_client import PythonOBDClient  # noqa: E402
+
+    class _BadMessage:
+        raw = None  # noqa: A003  # intentional: elicits NoneType is not callable if mishandled
+
+    monkeypatch.setattr(obd, "OBD", _FakeOBD)
+
+    c = PythonOBDClient("1.2.3.4", 35000)
+    c.connect()
+    assert c._conn is not None  # noqa: SLF001
+    c._conn._query_handler = lambda cmd: _FakeResponse(  # noqa: SLF001
+        messages=[_BadMessage(), _FakeMessage("41 0C 1A F8")],
+        value=None,
+        is_null=False,
+    )
+
+    res = c.request_mode01(0x0C)
+    assert res.ok is True
+    assert res.data_bytes[:2] == [0x1A, 0xF8]
 
 
 @pytest.mark.parametrize("raw", ["NO DATA", "UNABLE TO CONNECT", "BUS INIT: ERROR"])

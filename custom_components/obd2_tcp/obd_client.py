@@ -71,6 +71,10 @@ class OBDClientIgnitionOff(OBDClientError):
     """IgnMon / AT IGN indicates ignition off (or ignition backoff active)."""
 
 
+class OBDClientUnavailable(OBDClientError):
+    """ELM/ECU not ready — expected when the vehicle is off or the bus is quiet."""
+
+
 @dataclass(frozen=True)
 class Mode01Result:
     ok: bool
@@ -150,7 +154,7 @@ class PythonOBDClient:
         if not self._conn or self._conn.status() == obd.OBDStatus.NOT_CONNECTED:
             self._conn = None
             self._note_connect_failure()
-            raise OBDClientError("OBD connect failed: NOT_CONNECTED")
+            raise OBDClientUnavailable("OBD connect failed: NOT_CONNECTED")
 
         self._connect_failures = 0
         self._connect_backoff_until = 0.0
@@ -436,9 +440,24 @@ class PythonOBDClient:
         if r is None or not r.messages:
             return Mode01Result(False, "", [])
 
-        raw_text = "\n".join(
-            m.raw().replace(" ", "") for m in r.messages if hasattr(m, "raw")
-        )
+        def _message_raw(m: Any) -> str:
+            rfn = getattr(m, "raw", None)
+            if rfn is None or not callable(rfn):
+                return ""
+            try:
+                t = rfn()
+            except Exception:  # noqa: BLE001
+                return ""
+            if not isinstance(t, str):
+                return ""
+            return t.replace(" ", "")
+
+        try:
+            raw_text = "\n".join(
+                s for s in (_message_raw(m) for m in r.messages) if s
+            )
+        except (TypeError, ValueError):
+            return Mode01Result(False, "", [])
         if _NO_DATA.search(raw_text) or _UNABLE.search(raw_text):
             return Mode01Result(False, "", [])
 

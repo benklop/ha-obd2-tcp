@@ -82,4 +82,8 @@ class OBD2TcpSensor(CoordinatorEntity[OBD2TCPCoordinator], SensorEntity):
         data = self.coordinator.data
         if not isinstance(data, dict):
             return False
-        return self.coordinator.last_update_success and self._profile.name in data
+        return (
+            self.coordinator.last_update_success
+            and self.coordinator.obd2_reachable
+            and self._profile.name in data
+        )
